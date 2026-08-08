@@ -1,0 +1,156 @@
+{
+  "entities": {
+    "users": {
+      "title": "User",
+      "description": "User profile with role, contact info, and location coordinates",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "fullName": { "type": "string", "description": "Full name" },
+        "email": { "type": "string", "description": "Email address" },
+        "phone": { "type": "string", "description": "Phone number" },
+        "role": { "type": "string", "enum": ["jobSeeker", "employer", "admin"], "description": "User role" },
+        "photoURL": { "type": "string", "description": "Avatar photo URL" },
+        "city": { "type": "string", "description": "City or locality name" },
+        "locationName": { "type": "string", "description": "Formatted location string" },
+        "latitude": { "type": "number", "description": "Latitude coordinate" },
+        "longitude": { "type": "number", "description": "Longitude coordinate" },
+        "geohash": { "type": "string", "description": "Geohash for location searching" },
+        "skills": { "type": "array", "items": { "type": "string" }, "description": "List of skills" },
+        "about": { "type": "string", "description": "Bio or summary" },
+        "preferredCategories": { "type": "array", "items": { "type": "string" }, "description": "Preferred job categories" },
+        "accountStatus": { "type": "string", "enum": ["active", "suspended"], "description": "Account status" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "description": "Last update timestamp" }
+      },
+      "required": ["uid", "email", "fullName", "role"]
+    },
+    "employers": {
+      "title": "Employer",
+      "description": "Employer and company profile details",
+      "properties": {
+        "employerId": { "type": "string", "description": "Employer document ID" },
+        "uid": { "type": "string", "description": "Firebase Auth UID of the employer" },
+        "companyName": { "type": "string", "description": "Company or business name" },
+        "description": { "type": "string", "description": "Company description" },
+        "category": { "type": "string", "description": "Business industry or category" },
+        "phone": { "type": "string", "description": "Business contact phone" },
+        "address": { "type": "string", "description": "Street address" },
+        "city": { "type": "string", "description": "City name" },
+        "latitude": { "type": "number", "description": "Latitude coordinate" },
+        "longitude": { "type": "number", "description": "Longitude coordinate" },
+        "geohash": { "type": "string", "description": "Geohash string" },
+        "verificationStatus": { "type": "string", "enum": ["pending", "verified", "rejected", "suspended"], "description": "Verification status by admin" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "description": "Last update timestamp" }
+      },
+      "required": ["employerId", "uid", "companyName"]
+    },
+    "jobs": {
+      "title": "Job",
+      "description": "Part-time job posting with location coordinates",
+      "properties": {
+        "jobId": { "type": "string", "description": "Job document ID" },
+        "employerId": { "type": "string", "description": "UID of employer who created the job" },
+        "employerName": { "type": "string", "description": "Name of employer or company" },
+        "title": { "type": "string", "description": "Job title" },
+        "description": { "type": "string", "description": "Detailed job description" },
+        "category": { "type": "string", "description": "Job category" },
+        "jobType": { "type": "string", "description": "Job type (e.g. part-time, weekend, hourly)" },
+        "payAmount": { "type": "number", "description": "Payment rate or salary amount" },
+        "payFrequency": { "type": "string", "description": "Pay frequency (per hour, per day, per week, per month)" },
+        "requiredSkills": { "type": "array", "items": { "type": "string" }, "description": "Skills needed" },
+        "requirements": { "type": "array", "items": { "type": "string" }, "description": "Job requirements" },
+        "openings": { "type": "number", "description": "Number of open positions" },
+        "workingDays": { "type": "string", "description": "Working days schedule" },
+        "workingHours": { "type": "string", "description": "Working hours schedule" },
+        "locationName": { "type": "string", "description": "Human-readable location name" },
+        "address": { "type": "string", "description": "Street address" },
+        "latitude": { "type": "number", "description": "Latitude coordinate" },
+        "longitude": { "type": "number", "description": "Longitude coordinate" },
+        "geohash": { "type": "string", "description": "Geohash string" },
+        "status": { "type": "string", "enum": ["draft", "pending", "approved", "rejected", "closed", "expired", "hidden"], "description": "Approval status" },
+        "rejectionReason": { "type": "string", "description": "Admin rejection message if applicable" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "description": "Last update timestamp" },
+        "expiresAt": { "type": "string", "description": "Expiration timestamp" }
+      },
+      "required": ["jobId", "employerId", "title", "category", "payAmount", "status"]
+    },
+    "applications": {
+      "title": "Application",
+      "description": "Job application submitted by a job seeker",
+      "properties": {
+        "applicationId": { "type": "string", "description": "Application ID" },
+        "jobId": { "type": "string", "description": "Job ID applied to" },
+        "jobTitle": { "type": "string", "description": "Job title" },
+        "employerId": { "type": "string", "description": "Employer UID" },
+        "employerName": { "type": "string", "description": "Employer or company name" },
+        "jobSeekerId": { "type": "string", "description": "Job Seeker UID" },
+        "jobSeekerName": { "type": "string", "description": "Job Seeker full name" },
+        "jobSeekerEmail": { "type": "string", "description": "Job Seeker email" },
+        "jobSeekerPhone": { "type": "string", "description": "Job Seeker phone" },
+        "appliedAt": { "type": "string", "description": "Submission timestamp" },
+        "status": { "type": "string", "enum": ["pending", "shortlisted", "accepted", "rejected", "withdrawn"], "description": "Application status" },
+        "updatedAt": { "type": "string", "description": "Update timestamp" }
+      },
+      "required": ["applicationId", "jobId", "employerId", "jobSeekerId", "status"]
+    },
+    "savedJobs": {
+      "title": "SavedJob",
+      "description": "Bookmarked job by a job seeker",
+      "properties": {
+        "savedJobId": { "type": "string", "description": "Saved job entry ID" },
+        "jobSeekerId": { "type": "string", "description": "Job Seeker UID" },
+        "jobId": { "type": "string", "description": "Saved job ID" },
+        "createdAt": { "type": "string", "description": "Saved timestamp" }
+      },
+      "required": ["savedJobId", "jobSeekerId", "jobId"]
+    },
+    "notifications": {
+      "title": "Notification",
+      "description": "In-app notifications for users",
+      "properties": {
+        "notificationId": { "type": "string", "description": "Notification ID" },
+        "recipientUid": { "type": "string", "description": "Recipient UID" },
+        "title": { "type": "string", "description": "Notification title" },
+        "message": { "type": "string", "description": "Notification message body" },
+        "type": { "type": "string", "description": "Type of notification" },
+        "relatedJobId": { "type": "string", "description": "Related job ID" },
+        "relatedApplicationId": { "type": "string", "description": "Related application ID" },
+        "isRead": { "type": "boolean", "description": "Read status" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["notificationId", "recipientUid", "title", "message", "isRead"]
+    },
+    "contactMessages": {
+      "title": "ContactMessage",
+      "description": "Public contact form submission",
+      "properties": {
+        "messageId": { "type": "string", "description": "Message ID" },
+        "name": { "type": "string", "description": "Submitter name" },
+        "email": { "type": "string", "description": "Submitter email" },
+        "subject": { "type": "string", "description": "Subject line" },
+        "message": { "type": "string", "description": "Message content" },
+        "status": { "type": "string", "enum": ["unread", "read"], "description": "Read status" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["messageId", "name", "email", "subject", "message"]
+    },
+    "activityLogs": {
+      "title": "ActivityLog",
+      "description": "Audit log of critical platform events",
+      "properties": {
+        "logId": { "type": "string", "description": "Log ID" },
+        "actorUid": { "type": "string", "description": "UID of user who performed action" },
+        "actorRole": { "type": "string", "description": "Role of actor" },
+        "actorName": { "type": "string", "description": "Name of actor" },
+        "action": { "type": "string", "description": "Action type" },
+        "targetType": { "type": "string", "description": "Type of affected resource" },
+        "targetId": { "type": "string", "description": "ID of affected resource" },
+        "description": { "type": "string", "description": "Human readable description" },
+        "createdAt": { "type": "string", "description": "Timestamp" }
+      },
+      "required": ["logId", "actorUid", "action", "description"]
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Part Time Hub",
+  "description": "Location-based part-time job platform connecting job seekers and employers with real-time location discovery.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

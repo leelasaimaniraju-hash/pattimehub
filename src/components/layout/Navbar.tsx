@@ -79,7 +79,7 @@ export const Navbar: React.FC = () => {
             </div>
 
             {/* Desktop Navigation Links */}
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className="hidden lg:flex items-center gap-1">
               {navLinks.map((link) => {
                 const isActive = location.pathname === link.path;
                 return (
@@ -98,8 +98,28 @@ export const Navbar: React.FC = () => {
               })}
             </nav>
 
-            {/* Desktop Auth Section */}
-            <div className="hidden md:flex items-center gap-3">
+            {/* Role Action Buttons & Desktop Auth Section */}
+            <div className="hidden md:flex items-center gap-2.5">
+              {/* Job Seeker Action Button */}
+              <Link
+                to={currentUser && role === 'jobSeeker' ? '/seeker/jobs' : '/jobs'}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-indigo-600 hover:bg-slate-100/80 rounded-xl transition-colors border border-slate-200"
+              >
+                <Search className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Job Seeker</span>
+              </Link>
+
+              {/* Employer Action Button */}
+              <Link
+                to={currentUser && role === 'employer' ? '/employer/post-job' : '/register/employer'}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 rounded-xl transition-colors border border-indigo-200/70"
+              >
+                <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                <span>For Employers</span>
+              </Link>
+
+              <div className="h-5 w-px bg-slate-200 mx-1"></div>
+
               {currentUser ? (
                 <div className="relative">
                   <button
@@ -107,11 +127,11 @@ export const Navbar: React.FC = () => {
                     className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-100 transition-colors border border-slate-200"
                   >
                     <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center text-xs shadow-xs">
-                      {userProfile?.fullName?.charAt(0) || 'U'}
+                      {userProfile?.fullName?.charAt(0) || (role === 'admin' ? 'A' : 'U')}
                     </div>
                     <div className="text-left leading-none pr-1">
                       <div className="text-xs font-semibold text-slate-900 truncate max-w-[100px]">
-                        {userProfile?.fullName || 'User'}
+                        {userProfile?.fullName || (role === 'admin' ? 'Admin' : 'User')}
                       </div>
                       <div className="text-[10px] text-slate-500 capitalize">{role || 'Member'}</div>
                     </div>
@@ -122,7 +142,7 @@ export const Navbar: React.FC = () => {
                   {profileDropdownOpen && (
                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
                       <div className="px-4 py-2.5 border-b border-slate-100">
-                        <p className="text-xs font-semibold text-slate-900">{userProfile?.fullName}</p>
+                        <p className="text-xs font-semibold text-slate-900">{userProfile?.fullName || 'Signed In'}</p>
                         <p className="text-[11px] text-slate-500 truncate">{currentUser.email}</p>
                       </div>
 
@@ -136,6 +156,28 @@ export const Navbar: React.FC = () => {
                         {role === 'jobSeeker' && <User className="w-4 h-4 text-indigo-600" />}
                         Dashboard
                       </Link>
+
+                      {role === 'jobSeeker' && (
+                        <Link
+                          to="/seeker/jobs"
+                          onClick={() => setProfileDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                        >
+                          <Search className="w-4 h-4 text-slate-400" />
+                          Browse Jobs
+                        </Link>
+                      )}
+
+                      {role === 'employer' && (
+                        <Link
+                          to="/employer/post-job"
+                          onClick={() => setProfileDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                        >
+                          <Briefcase className="w-4 h-4 text-slate-400" />
+                          Post a Job
+                        </Link>
+                      )}
 
                       <button
                         onClick={() => {
@@ -154,15 +196,15 @@ export const Navbar: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <Link
                     to="/login"
-                    className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-indigo-600 transition-colors"
+                    className="px-3 py-2 text-xs font-semibold text-slate-700 hover:text-indigo-600 transition-colors"
                   >
                     Log In
                   </Link>
                   <Link
-                    to="/register/job-seeker"
-                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all shadow-sm shadow-indigo-200"
+                    to="/register/seeker"
+                    className="px-3.5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all shadow-xs"
                   >
-                    Register
+                    Sign Up
                   </Link>
                 </div>
               )}
@@ -189,36 +231,56 @@ export const Navbar: React.FC = () => {
 
         {/* Mobile Navigation Drawer */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-slate-200 bg-white px-4 pt-2 pb-6 space-y-3">
-            <div className="space-y-1 py-2">
+          <div className="md:hidden border-t border-slate-200 bg-white px-4 pt-2 pb-6 space-y-4 shadow-xl">
+            {/* Quick Role Direct Access */}
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <Link
+                to="/jobs"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center justify-center gap-2 p-2.5 bg-slate-50 border border-slate-200 hover:border-indigo-400 rounded-xl text-xs font-bold text-slate-800 text-center"
+              >
+                <Search className="w-4 h-4 text-indigo-600" />
+                <span>Job Seeker</span>
+              </Link>
+              <Link
+                to="/register/employer"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center justify-center gap-2 p-2.5 bg-indigo-50 border border-indigo-200 hover:border-indigo-400 rounded-xl text-xs font-bold text-indigo-700 text-center"
+              >
+                <Building2 className="w-4 h-4 text-indigo-600" />
+                <span>For Employers</span>
+              </Link>
+            </div>
+
+            <div className="space-y-1 py-1 border-t border-slate-100">
               {navLinks.map((link) => (
                 <Link
                   key={link.path}
                   to={link.path}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="block px-3 py-2 text-base font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg"
+                  className="block px-3 py-2 text-sm font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg"
                 >
                   {link.name}
                 </Link>
               ))}
             </div>
 
-            <div className="pt-3 border-t border-slate-100 space-y-2">
+            <div className="pt-2 border-t border-slate-100 space-y-2">
               {currentUser ? (
                 <>
                   <Link
                     to={getDashboardPath()}
                     onClick={() => setMobileMenuOpen(false)}
-                    className="block w-full text-center py-2.5 px-4 bg-indigo-600 text-white rounded-xl font-medium text-sm shadow-sm"
+                    className="block w-full text-center py-2.5 px-4 bg-indigo-600 text-white rounded-xl font-bold text-xs shadow-sm"
                   >
-                    Go to Dashboard
+                    Go to {role === 'admin' ? 'Admin' : role === 'employer' ? 'Employer' : 'Seeker'} Dashboard
                   </Link>
                   <button
                     onClick={() => {
                       setMobileMenuOpen(false);
                       handleLogout();
                     }}
-                    className="block w-full text-center py-2.5 px-4 text-rose-600 bg-rose-50 rounded-xl font-medium text-sm"
+                    className="block w-full text-center py-2.5 px-4 text-rose-600 bg-rose-50 rounded-xl font-bold text-xs"
                   >
                     Sign Out
                   </button>
@@ -228,16 +290,16 @@ export const Navbar: React.FC = () => {
                   <Link
                     to="/login"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="text-center py-2.5 px-4 border border-slate-200 text-slate-700 font-medium text-sm rounded-xl"
+                    className="text-center py-2.5 px-4 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl"
                   >
                     Log In
                   </Link>
                   <Link
-                    to="/register/job-seeker"
+                    to="/register/seeker"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="text-center py-2.5 px-4 bg-indigo-600 text-white font-medium text-sm rounded-xl shadow-xs"
+                    className="text-center py-2.5 px-4 bg-indigo-600 text-white font-bold text-xs rounded-xl shadow-xs"
                   >
-                    Register
+                    Sign Up
                   </Link>
                 </div>
               )}

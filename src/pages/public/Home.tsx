@@ -129,8 +129,26 @@ export const Home: React.FC = () => {
               </button>
             </form>
 
+            {/* Dual Role Quick Buttons */}
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Link
+                to="/jobs"
+                className="w-full sm:w-auto px-6 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition-all"
+              >
+                <Search className="w-4 h-4" />
+                <span>Find Jobs (Job Seeker)</span>
+              </Link>
+              <Link
+                to="/register/employer"
+                className="w-full sm:w-auto px-6 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-100 hover:text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 border border-slate-700 transition-all"
+              >
+                <Building2 className="w-4 h-4 text-emerald-400" />
+                <span>Post a Job (For Employers)</span>
+              </Link>
+            </div>
+
             {/* Quick Radius Pills */}
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-slate-400">
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2 text-xs text-slate-400">
               <span className="font-medium text-slate-300">Quick Distance:</span>
               {[2, 5, 10, 15, 25].map((km) => (
                 <Link

@@ -41,6 +41,7 @@ import { CompanyProfile } from './pages/employer/CompanyProfile';
 import { EmployerNotifications } from './pages/employer/EmployerNotifications';
 
 // Admin Pages
+import { AdminAccess } from './pages/admin/AdminAccess';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { PendingJobs } from './pages/admin/PendingJobs';
 import { ManageEmployers } from './pages/admin/ManageEmployers';
@@ -230,7 +231,8 @@ export const App: React.FC = () => {
             }
           />
 
-          {/* Admin Protected Routes */}
+          {/* Admin Routes */}
+          <Route path="/admin" element={<AdminAccess />} />
           <Route
             path="/admin/dashboard"
             element={

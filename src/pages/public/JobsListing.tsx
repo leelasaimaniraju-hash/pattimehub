@@ -20,7 +20,7 @@ import { Job, SavedJob, JobApplication } from '../../types';
 import { collection, query, where, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { calculateHaversineDistance, JOB_CATEGORIES, JOB_TYPES } from '../../utils/location';
-import { seedSampleDatabaseIfNeeded } from '../../services/seedData';
+import { getApprovedJobsWithFallback } from '../../services/seedData';
 
 export const JobsListing: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -84,28 +84,10 @@ export const JobsListing: React.FC = () => {
     async function fetchJobs() {
       setLoading(true);
       try {
-        await seedSampleDatabaseIfNeeded(userLocation?.latitude, userLocation?.longitude);
-
-        const jobsRef = collection(db, 'jobs');
-        const q = query(jobsRef, where('status', '==', 'approved'));
-        const snap = await getDocs(q);
-
-        const loaded: Job[] = [];
-        snap.forEach((doc) => {
-          const data = doc.data() as Job;
-          // Calculate distance relative to current user coordinates
-          const dist = userLocation
-            ? calculateHaversineDistance(
-                userLocation.latitude,
-                userLocation.longitude,
-                data.latitude,
-                data.longitude
-              )
-            : undefined;
-
-          loaded.push({ ...data, distanceKm: dist });
-        });
-
+        const loaded = await getApprovedJobsWithFallback(
+          userLocation?.latitude,
+          userLocation?.longitude
+        );
         setJobs(loaded);
       } catch (err) {
         console.error('Error fetching jobs:', err);

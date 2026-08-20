@@ -6,6 +6,7 @@ import { Job, SavedJob, JobApplication } from '../../types';
 import { collection, query, where, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { calculateHaversineDistance, JOB_CATEGORIES, JOB_TYPES } from '../../utils/location';
+import { getApprovedJobsWithFallback } from '../../services/seedData';
 import { Search, MapPin, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -29,37 +30,34 @@ export const SeekerSearchJobs: React.FC = () => {
       if (!currentUser?.uid) return;
       setLoading(true);
       try {
-        // Load approved jobs
-        const q = query(collection(db, 'jobs'), where('status', '==', 'approved'));
-        const snap = await getDocs(q);
-        const loaded: Job[] = [];
-        snap.forEach((doc) => {
-          const data = doc.data() as Job;
-          const dist = userLocation
-            ? calculateHaversineDistance(
-                userLocation.latitude,
-                userLocation.longitude,
-                data.latitude,
-                data.longitude
-              )
-            : undefined;
-          loaded.push({ ...data, distanceKm: dist });
-        });
+        // Load approved jobs with fallback
+        const loaded = await getApprovedJobsWithFallback(
+          userLocation?.latitude,
+          userLocation?.longitude
+        );
         setJobs(loaded);
 
         // Load saved
-        const savedQ = query(collection(db, 'savedJobs'), where('jobSeekerId', '==', currentUser.uid));
-        const savedSnap = await getDocs(savedQ);
-        const savedSet = new Set<string>();
-        savedSnap.forEach((doc) => savedSet.add((doc.data() as SavedJob).jobId));
-        setSavedJobIds(savedSet);
+        try {
+          const savedQ = query(collection(db, 'savedJobs'), where('jobSeekerId', '==', currentUser.uid));
+          const savedSnap = await getDocs(savedQ);
+          const savedSet = new Set<string>();
+          savedSnap.forEach((doc) => savedSet.add((doc.data() as SavedJob).jobId));
+          setSavedJobIds(savedSet);
+        } catch (sErr) {
+          console.warn('Saved jobs notice:', sErr);
+        }
 
         // Load applications
-        const appQ = query(collection(db, 'applications'), where('jobSeekerId', '==', currentUser.uid));
-        const appSnap = await getDocs(appQ);
-        const appSet = new Set<string>();
-        appSnap.forEach((doc) => appSet.add((doc.data() as JobApplication).jobId));
-        setAppliedJobIds(appSet);
+        try {
+          const appQ = query(collection(db, 'applications'), where('jobSeekerId', '==', currentUser.uid));
+          const appSnap = await getDocs(appQ);
+          const appSet = new Set<string>();
+          appSnap.forEach((doc) => appSet.add((doc.data() as JobApplication).jobId));
+          setAppliedJobIds(appSet);
+        } catch (aErr) {
+          console.warn('Applications notice:', aErr);
+        }
       } catch (err) {
         console.error('Error in SeekerSearchJobs:', err);
       } finally {

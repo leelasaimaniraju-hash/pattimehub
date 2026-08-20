@@ -22,7 +22,7 @@ import { Job } from '../../types';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { calculateHaversineDistance, JOB_CATEGORIES } from '../../utils/location';
-import { seedSampleDatabaseIfNeeded } from '../../services/seedData';
+import { getApprovedJobsWithFallback } from '../../services/seedData';
 
 export const Home: React.FC = () => {
   const { userLocation, requestUserLocation } = useAuth();
@@ -36,30 +36,14 @@ export const Home: React.FC = () => {
     async function loadFeatured() {
       setLoadingJobs(true);
       try {
-        await seedSampleDatabaseIfNeeded(userLocation?.latitude, userLocation?.longitude);
-
-        const jobsRef = collection(db, 'jobs');
-        const q = query(jobsRef, where('status', '==', 'approved'), limit(12));
-        const snap = await getDocs(q);
-
-        const loaded: Job[] = [];
-        snap.forEach((doc) => {
-          const data = doc.data() as Job;
-          // Calculate distance
-          const dist = userLocation
-            ? calculateHaversineDistance(
-                userLocation.latitude,
-                userLocation.longitude,
-                data.latitude,
-                data.longitude
-              )
-            : undefined;
-          loaded.push({ ...data, distanceKm: dist });
-        });
+        const loaded = await getApprovedJobsWithFallback(
+          userLocation?.latitude,
+          userLocation?.longitude
+        );
 
         // Sort by nearest
         loaded.sort((a, b) => (a.distanceKm || 999) - (b.distanceKm || 999));
-        setNearbyJobs(loaded);
+        setNearbyJobs(loaded.slice(0, 6));
       } catch (err) {
         console.error('Error loading featured home jobs:', err);
       } finally {

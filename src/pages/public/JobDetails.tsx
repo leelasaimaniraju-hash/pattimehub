@@ -31,6 +31,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { calculateHaversineDistance, formatDistance } from '../../utils/location';
+import { getJobByIdWithFallback } from '../../services/seedData';
 
 export const JobDetails: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>();
@@ -51,41 +52,33 @@ export const JobDetails: React.FC = () => {
       if (!jobId) return;
       setLoading(true);
       try {
-        const jobRef = doc(db, 'jobs', jobId);
-        const jobSnap = await getDoc(jobRef);
+        const { job: foundJob, employer: foundEmployer } = await getJobByIdWithFallback(
+          jobId,
+          userLocation?.latitude,
+          userLocation?.longitude
+        );
 
-        if (jobSnap.exists()) {
-          const data = jobSnap.data() as Job;
-          const dist = userLocation
-            ? calculateHaversineDistance(
-                userLocation.latitude,
-                userLocation.longitude,
-                data.latitude,
-                data.longitude
-              )
-            : undefined;
-
-          setJob({ ...data, distanceKm: dist });
-
-          // Fetch employer info
-          const empSnap = await getDoc(doc(db, 'employers', data.employerId));
-          if (empSnap.exists()) {
-            setEmployer(empSnap.data() as EmployerProfile);
-          }
+        if (foundJob) {
+          setJob(foundJob);
+          setEmployer(foundEmployer);
 
           // Check if current user saved or applied
           if (currentUser && role === 'jobSeeker') {
-            const savedId = `${currentUser.uid}_${jobId}`;
-            const savedSnap = await getDoc(doc(db, 'savedJobs', savedId));
-            setIsSaved(savedSnap.exists());
+            try {
+              const savedId = `${currentUser.uid}_${jobId}`;
+              const savedSnap = await getDoc(doc(db, 'savedJobs', savedId));
+              setIsSaved(savedSnap.exists());
 
-            const appQ = query(
-              collection(db, 'applications'),
-              where('jobId', '==', jobId),
-              where('jobSeekerId', '==', currentUser.uid)
-            );
-            const appSnap = await getDocs(appQ);
-            setIsApplied(!appSnap.empty);
+              const appQ = query(
+                collection(db, 'applications'),
+                where('jobId', '==', jobId),
+                where('jobSeekerId', '==', currentUser.uid)
+              );
+              const appSnap = await getDocs(appQ);
+              setIsApplied(!appSnap.empty);
+            } catch (authDocErr) {
+              console.warn('Error checking user application status:', authDocErr);
+            }
           }
         }
       } catch (err) {

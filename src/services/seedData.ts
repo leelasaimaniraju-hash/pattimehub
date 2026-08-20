@@ -1,9 +1,9 @@
-import { doc, setDoc, getDocs, collection, query, limit } from 'firebase/firestore';
-import { db } from '../firebase/config';
-import { Job, EmployerProfile } from '../types';
-import { getGeohash } from '../utils/location';
+import { doc, setDoc, getDocs, getDoc, collection, query, where, limit } from 'firebase/firestore';
+import { db, auth } from '../firebase/config';
+import { Job, EmployerProfile, UserProfile } from '../types';
+import { getGeohash, calculateHaversineDistance } from '../utils/location';
 
-export const SAMPLE_EMPLOYERS: Partial<EmployerProfile>[] = [
+export const SAMPLE_EMPLOYERS: EmployerProfile[] = [
   {
     employerId: 'emp_starbucks_101',
     uid: 'emp_starbucks_101',
@@ -17,6 +17,8 @@ export const SAMPLE_EMPLOYERS: Partial<EmployerProfile>[] = [
     longitude: -74.0080,
     geohash: getGeohash(40.7138, -74.0080),
     verificationStatus: 'verified',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   },
   {
     employerId: 'emp_target_102',
@@ -31,6 +33,8 @@ export const SAMPLE_EMPLOYERS: Partial<EmployerProfile>[] = [
     longitude: -74.0020,
     geohash: getGeohash(40.7180, -74.0020),
     verificationStatus: 'verified',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   },
   {
     employerId: 'emp_doordash_103',
@@ -45,6 +49,8 @@ export const SAMPLE_EMPLOYERS: Partial<EmployerProfile>[] = [
     longitude: -74.0120,
     geohash: getGeohash(40.7250, -74.0120),
     verificationStatus: 'verified',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   },
   {
     employerId: 'emp_math_tutors_104',
@@ -59,6 +65,8 @@ export const SAMPLE_EMPLOYERS: Partial<EmployerProfile>[] = [
     longitude: -73.9980,
     geohash: getGeohash(40.7310, -73.9980),
     verificationStatus: 'verified',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   },
   {
     employerId: 'emp_events_105',
@@ -73,10 +81,12 @@ export const SAMPLE_EMPLOYERS: Partial<EmployerProfile>[] = [
     longitude: -74.0150,
     geohash: getGeohash(40.7090, -74.0150),
     verificationStatus: 'verified',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   }
 ];
 
-export function generateSampleJobs(userLat?: number, userLng?: number): Partial<Job>[] {
+export function generateSampleJobs(userLat?: number, userLng?: number): Job[] {
   const baseLat = userLat || 40.7128;
   const baseLng = userLng || -74.0060;
 
@@ -229,29 +239,32 @@ export function generateSampleJobs(userLat?: number, userLng?: number): Partial<
 }
 
 export async function seedSampleDatabaseIfNeeded(userLat?: number, userLng?: number) {
+  // Only attempt seeding if a user is authenticated (e.g. admin or initial user)
+  if (!auth.currentUser) {
+    return;
+  }
+
   try {
     const jobsRef = collection(db, 'jobs');
     const q = query(jobsRef, limit(1));
     const snap = await getDocs(q);
 
-    // If database already has jobs, skip auto seed unless empty
+    // If database already has jobs, skip auto seed
     if (!snap.empty) {
       return;
     }
 
-    console.log('Seeding initial sample employers and jobs...');
-
     // Seed Employers
     for (const emp of SAMPLE_EMPLOYERS) {
       const now = new Date().toISOString();
-      await setDoc(doc(db, 'employers', emp.employerId!), {
+      await setDoc(doc(db, 'employers', emp.employerId), {
         ...emp,
         createdAt: now,
         updatedAt: now,
       });
 
       // Also create a user record for the employer
-      await setDoc(doc(db, 'users', emp.uid!), {
+      await setDoc(doc(db, 'users', emp.uid), {
         uid: emp.uid,
         fullName: emp.companyName,
         email: `contact@${emp.employerId}.com`,
@@ -271,11 +284,91 @@ export async function seedSampleDatabaseIfNeeded(userLat?: number, userLng?: num
     // Seed Jobs
     const jobs = generateSampleJobs(userLat, userLng);
     for (const job of jobs) {
-      await setDoc(doc(db, 'jobs', job.jobId!), job);
+      await setDoc(doc(db, 'jobs', job.jobId), job);
     }
-
-    console.log('Sample database successfully seeded!');
-  } catch (err) {
-    console.error('Error seeding sample database:', err);
+  } catch (err: any) {
+    // If not permitted or already exists, silently handle
+    if (err?.code !== 'permission-denied') {
+      console.warn('Database seed notice:', err?.message || err);
+    }
   }
+}
+
+/**
+ * Robust fetcher for approved public jobs. Returns Firestore data or fallback sample jobs if empty.
+ */
+export async function getApprovedJobsWithFallback(userLat?: number, userLng?: number): Promise<Job[]> {
+  try {
+    const jobsRef = collection(db, 'jobs');
+    const q = query(jobsRef, where('status', '==', 'approved'));
+    const snap = await getDocs(q);
+
+    const loaded: Job[] = [];
+    snap.forEach((doc) => {
+      const data = doc.data() as Job;
+      const dist = userLat !== undefined && userLng !== undefined
+        ? calculateHaversineDistance(userLat, userLng, data.latitude, data.longitude)
+        : undefined;
+      loaded.push({ ...data, distanceKm: dist });
+    });
+
+    if (loaded.length > 0) {
+      return loaded;
+    }
+  } catch (err) {
+    console.warn('Fetching jobs from Firestore notice:', err);
+  }
+
+  // Fallback to sample jobs with calculated distance
+  const samples = generateSampleJobs(userLat, userLng);
+  return samples.map((job) => ({
+    ...job,
+    distanceKm: userLat !== undefined && userLng !== undefined
+      ? calculateHaversineDistance(userLat, userLng, job.latitude, job.longitude)
+      : undefined,
+  }));
+}
+
+/**
+ * Robust fetcher for a single job by ID. Checks Firestore or fallback sample jobs.
+ */
+export async function getJobByIdWithFallback(jobId: string, userLat?: number, userLng?: number): Promise<{ job: Job | null; employer: EmployerProfile | null }> {
+  try {
+    const jobRef = doc(db, 'jobs', jobId);
+    const jobSnap = await getDoc(jobRef);
+
+    if (jobSnap.exists()) {
+      const data = jobSnap.data() as Job;
+      const dist = userLat !== undefined && userLng !== undefined
+        ? calculateHaversineDistance(userLat, userLng, data.latitude, data.longitude)
+        : undefined;
+
+      let employer: EmployerProfile | null = null;
+      try {
+        const empSnap = await getDoc(doc(db, 'employers', data.employerId));
+        if (empSnap.exists()) {
+          employer = empSnap.data() as EmployerProfile;
+        }
+      } catch (e) {
+        // employer fetch ignore
+      }
+
+      return { job: { ...data, distanceKm: dist }, employer };
+    }
+  } catch (err) {
+    console.warn('Fetching job by ID notice:', err);
+  }
+
+  // Check in sample jobs
+  const sampleJobs = generateSampleJobs(userLat, userLng);
+  const matchedSample = sampleJobs.find((j) => j.jobId === jobId);
+  if (matchedSample) {
+    const dist = userLat !== undefined && userLng !== undefined
+      ? calculateHaversineDistance(userLat, userLng, matchedSample.latitude, matchedSample.longitude)
+      : undefined;
+    const emp = SAMPLE_EMPLOYERS.find((e) => e.employerId === matchedSample.employerId) || null;
+    return { job: { ...matchedSample, distanceKm: dist }, employer: emp };
+  }
+
+  return { job: null, employer: null };
 }

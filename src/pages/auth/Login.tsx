@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, LogIn, ArrowRight, Briefcase } from 'lucide-react';
+import { Mail, Lock, LogIn, ArrowRight, Briefcase, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { GoogleOnboardingModal } from '../../components/common/GoogleOnboardingModal';
+import { getFriendlyAuthErrorMessage } from '../../utils/authErrors';
 
 export const Login: React.FC = () => {
   const { login, loginWithGoogle, role, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [authError, setAuthError] = useState<{ title: string; message: string; isOperationNotAllowed: boolean } | null>(null);
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setAuthError(null);
     try {
       await login(email, password);
       if (email === 'admin@parttimehub.com' || email === 'leelasaimaniraju@gmail.com') {
@@ -24,19 +25,21 @@ export const Login: React.FC = () => {
         navigate('/seeker/dashboard');
       }
     } catch (err: any) {
-      setError(err.message || 'Invalid email or password');
+      console.error('Login error:', err);
+      setAuthError(getFriendlyAuthErrorMessage(err));
     }
   };
 
   const handleGoogleLogin = async () => {
-    setError('');
+    setAuthError(null);
     try {
       await loginWithGoogle();
       if (role === 'admin') navigate('/admin/dashboard');
       else if (role === 'employer') navigate('/employer/dashboard');
       else navigate('/seeker/dashboard');
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in with Google');
+      console.error('Google login error:', err);
+      setAuthError(getFriendlyAuthErrorMessage(err));
     }
   };
 
@@ -55,9 +58,37 @@ export const Login: React.FC = () => {
           </p>
         </div>
 
-        {error && (
-          <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-medium leading-relaxed">
-            {error}
+        {/* Actionable Error Alert */}
+        {authError && (
+          <div className="mb-6 p-4 bg-amber-50/80 border border-amber-200 text-amber-900 rounded-2xl text-xs space-y-2.5">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <strong className="font-semibold text-amber-900 block text-sm">{authError.title}</strong>
+                <p className="text-amber-800 mt-1 leading-relaxed">{authError.message}</p>
+              </div>
+            </div>
+
+            {authError.isOperationNotAllowed && (
+              <div className="pt-2 border-t border-amber-200/80 space-y-2">
+                <p className="text-[11px] font-semibold text-amber-900">How to fix in Firebase Console:</p>
+                <ol className="list-decimal list-inside text-[11px] text-amber-800 space-y-1 pl-1">
+                  <li>Open the <strong>Firebase Console</strong> and select your project</li>
+                  <li>Navigate to <strong>Authentication &rarr; Sign-in method</strong></li>
+                  <li>Click on <strong>Email/Password</strong> and toggle <strong>Enable</strong></li>
+                  <li>Click <strong>Save</strong> and return here to log in</li>
+                </ol>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleGoogleLogin}
+                    className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium text-xs flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+                  >
+                    Continue with Google Instead
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

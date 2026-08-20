@@ -8,10 +8,11 @@ import {
   signOut,
   sendPasswordResetEmail,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebase/config';
 import { UserProfile, EmployerProfile, UserRole, UserLocation } from '../types';
 import { getCurrentBrowserLocation, getGeohash } from '../utils/location';
+import { getFriendlyAuthErrorMessage } from '../utils/authErrors';
 
 interface AuthContextType {
   currentUser: FirebaseUser | null;
@@ -22,6 +23,8 @@ interface AuthContextType {
   userLocation: UserLocation | null;
   needsGoogleOnboarding: boolean;
   setNeedsGoogleOnboarding: (val: boolean) => void;
+  preferredGoogleRole: UserRole;
+  setPreferredGoogleRole: (role: UserRole) => void;
   requestUserLocation: () => Promise<UserLocation | null>;
   setUserManualLocation: (loc: UserLocation) => void;
   login: (email: string, pass: string) => Promise<void>;
@@ -48,7 +51,7 @@ interface AuthContextType {
     latitude?: number;
     longitude?: number;
   }) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
+  loginWithGoogle: (preferredRole?: UserRole) => Promise<void>;
   completeGoogleOnboarding: (data: {
     role: UserRole;
     phone?: string;
@@ -73,6 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState<boolean>(true);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [needsGoogleOnboarding, setNeedsGoogleOnboarding] = useState<boolean>(false);
+  const [preferredGoogleRole, setPreferredGoogleRole] = useState<UserRole>('jobSeeker');
 
   // Attempt default location fetch on app init
   useEffect(() => {
@@ -326,8 +330,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = async (preferredRole?: UserRole) => {
     setLoading(true);
+    if (preferredRole) {
+      setPreferredGoogleRole(preferredRole);
+    }
     try {
       const res = await signInWithPopup(auth, googleProvider);
       const user = res.user;
@@ -438,6 +445,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         userLocation,
         needsGoogleOnboarding,
         setNeedsGoogleOnboarding,
+        preferredGoogleRole,
+        setPreferredGoogleRole,
         requestUserLocation,
         setUserManualLocation,
         login,

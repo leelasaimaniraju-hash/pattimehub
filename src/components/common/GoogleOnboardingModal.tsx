@@ -4,12 +4,19 @@ import { useAuth } from '../../context/AuthContext';
 import { UserRole } from '../../types';
 
 export const GoogleOnboardingModal: React.FC = () => {
-  const { needsGoogleOnboarding, completeGoogleOnboarding, loading } = useAuth();
-  const [selectedRole, setSelectedRole] = useState<UserRole>('jobSeeker');
+  const { needsGoogleOnboarding, completeGoogleOnboarding, preferredGoogleRole, loading } = useAuth();
+  const [selectedRole, setSelectedRole] = useState<UserRole>(preferredGoogleRole || 'jobSeeker');
   const [phone, setPhone] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [category, setCategory] = useState('Retail & Shopping');
   const [city, setCity] = useState('');
+
+  // Update selectedRole when preferredGoogleRole changes
+  React.useEffect(() => {
+    if (preferredGoogleRole) {
+      setSelectedRole(preferredGoogleRole);
+    }
+  }, [preferredGoogleRole]);
 
   if (!needsGoogleOnboarding) return null;
 

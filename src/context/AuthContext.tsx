@@ -27,7 +27,7 @@ interface AuthContextType {
   setPreferredGoogleRole: (role: UserRole) => void;
   requestUserLocation: () => Promise<UserLocation | null>;
   setUserManualLocation: (loc: UserLocation) => void;
-  login: (email: string, pass: string) => Promise<void>;
+  login: (email: string, pass: string) => Promise<UserRole | null>;
   registerJobSeeker: (data: {
     fullName: string;
     email: string;
@@ -51,7 +51,7 @@ interface AuthContextType {
     latitude?: number;
     longitude?: number;
   }) => Promise<void>;
-  loginWithGoogle: (preferredRole?: UserRole) => Promise<void>;
+  loginWithGoogle: (preferredRole?: UserRole) => Promise<UserRole | null>;
   completeGoogleOnboarding: (data: {
     role: UserRole;
     phone?: string;
@@ -120,7 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserLocation(loc);
   };
 
-  const fetchUserData = async (user: FirebaseUser) => {
+  const fetchUserData = async (user: FirebaseUser): Promise<UserRole | null> => {
     try {
       const userRef = doc(db, 'users', user.uid);
       const userSnap = await getDoc(userRef);
@@ -147,12 +147,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setEmployerProfile(empSnap.data() as EmployerProfile);
           }
         }
+        return activeRole;
       } else {
         // Needs onboarding for Google Sign In
         setNeedsGoogleOnboarding(true);
+        if (
+          user.email === 'leelasaimaniraju@gmail.com' ||
+          user.email === 'admin@parttimehub.com'
+        ) {
+          setRole('admin');
+          return 'admin';
+        }
+        return null;
       }
     } catch (err) {
       console.error('Error fetching user profile:', err);
+      return null;
     }
   };
 
@@ -179,10 +189,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const login = async (email: string, pass: string) => {
+  const login = async (email: string, pass: string): Promise<UserRole | null> => {
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, pass);
+      const res = await signInWithEmailAndPassword(auth, email, pass);
+      const activeRole = await fetchUserData(res.user);
+      return activeRole;
     } finally {
       setLoading(false);
     }
@@ -231,18 +243,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       await setDoc(doc(db, 'users', uid), newUser);
 
-      // Create activity log
-      await setDoc(doc(db, 'activityLogs', `log_${Date.now()}`), {
-        logId: `log_${Date.now()}`,
-        actorUid: uid,
-        actorRole: assignedRole,
-        actorName: data.fullName,
-        action: 'user_registered',
-        targetType: 'user',
-        targetId: uid,
-        description: `New Job Seeker registered: ${data.fullName}`,
-        createdAt: new Date().toISOString(),
-      });
+      // Create activity log (fail-safe)
+      try {
+        await setDoc(doc(db, 'activityLogs', `log_${Date.now()}`), {
+          logId: `log_${Date.now()}`,
+          actorUid: uid,
+          actorRole: assignedRole,
+          actorName: data.fullName,
+          action: 'user_registered',
+          targetType: 'user',
+          targetId: uid,
+          description: `New Job Seeker registered: ${data.fullName}`,
+          createdAt: new Date().toISOString(),
+        });
+      } catch (logErr) {
+        console.warn('Non-blocking activity log error:', logErr);
+      }
 
       await fetchUserData(res.user);
     } finally {
@@ -311,18 +327,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await setDoc(doc(db, 'users', uid), newUser);
       await setDoc(doc(db, 'employers', uid), newEmployer);
 
-      // Create activity log
-      await setDoc(doc(db, 'activityLogs', `log_${Date.now()}`), {
-        logId: `log_${Date.now()}`,
-        actorUid: uid,
-        actorRole: assignedRole,
-        actorName: data.companyName,
-        action: 'employer_registered',
-        targetType: 'employer',
-        targetId: uid,
-        description: `New Employer registered: ${data.companyName}`,
-        createdAt: new Date().toISOString(),
-      });
+      // Create activity log (fail-safe)
+      try {
+        await setDoc(doc(db, 'activityLogs', `log_${Date.now()}`), {
+          logId: `log_${Date.now()}`,
+          actorUid: uid,
+          actorRole: assignedRole,
+          actorName: data.companyName,
+          action: 'employer_registered',
+          targetType: 'employer',
+          targetId: uid,
+          description: `New Employer registered: ${data.companyName}`,
+          createdAt: new Date().toISOString(),
+        });
+      } catch (logErr) {
+        console.warn('Non-blocking activity log error:', logErr);
+      }
 
       await fetchUserData(res.user);
     } finally {
@@ -330,7 +350,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loginWithGoogle = async (preferredRole?: UserRole) => {
+  const loginWithGoogle = async (preferredRole?: UserRole): Promise<UserRole | null> => {
     setLoading(true);
     if (preferredRole) {
       setPreferredGoogleRole(preferredRole);
@@ -344,8 +364,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (!userSnap.exists()) {
         setNeedsGoogleOnboarding(true);
+        if (
+          user.email === 'leelasaimaniraju@gmail.com' ||
+          user.email === 'admin@parttimehub.com'
+        ) {
+          setRole('admin');
+          return 'admin';
+        }
+        return null;
       } else {
-        await fetchUserData(user);
+        const activeRole = await fetchUserData(user);
+        return activeRole;
       }
     } finally {
       setLoading(false);

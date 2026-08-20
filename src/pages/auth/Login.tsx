@@ -16,10 +16,10 @@ export const Login: React.FC = () => {
     e.preventDefault();
     setAuthError(null);
     try {
-      await login(email, password);
-      if (email === 'admin@parttimehub.com' || email === 'leelasaimaniraju@gmail.com') {
+      const activeRole = await login(email, password);
+      if (email === 'admin@parttimehub.com' || email === 'leelasaimaniraju@gmail.com' || activeRole === 'admin') {
         navigate('/admin/dashboard');
-      } else if (role === 'employer') {
+      } else if (activeRole === 'employer') {
         navigate('/employer/dashboard');
       } else {
         navigate('/seeker/dashboard');
@@ -33,10 +33,15 @@ export const Login: React.FC = () => {
   const handleGoogleLogin = async () => {
     setAuthError(null);
     try {
-      await loginWithGoogle();
-      if (role === 'admin') navigate('/admin/dashboard');
-      else if (role === 'employer') navigate('/employer/dashboard');
-      else navigate('/seeker/dashboard');
+      const activeRole = await loginWithGoogle();
+      if (activeRole === 'admin') {
+        navigate('/admin/dashboard');
+      } else if (activeRole === 'employer') {
+        navigate('/employer/dashboard');
+      } else if (activeRole === 'jobSeeker') {
+        navigate('/seeker/dashboard');
+      }
+      // If activeRole is null, the GoogleOnboardingModal will appear for new users
     } catch (err: any) {
       console.error('Google login error:', err);
       setAuthError(getFriendlyAuthErrorMessage(err));

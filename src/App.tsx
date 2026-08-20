@@ -96,6 +96,7 @@ export const App: React.FC = () => {
           {/* Auth Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/register/seeker" element={<RegisterJobSeeker />} />
+          <Route path="/register/job-seeker" element={<RegisterJobSeeker />} />
           <Route path="/register/employer" element={<RegisterEmployer />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
 

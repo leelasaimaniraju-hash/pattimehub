@@ -1,12 +1,12 @@
 {
-  "projectId": "nth-chess-fxctm",
-  "appId": "1:827690077755:web:d8c56e79a65a89588c161e",
-  "apiKey": "AIzaSyDGjS5SKs1sRvuihKlBLcieMtxGJNIvZKg",
-  "authDomain": "nth-chess-fxctm.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-parttimehub-2360ce91-d44c-4440-ab36-cc86e8a294ec",
-  "storageBucket": "nth-chess-fxctm.firebasestorage.app",
-  "messagingSenderId": "827690077755",
-  "measurementId": "",
-  "oAuthClientId": "827690077755-d393erd59ulqn59mustkcjgu09luq0en.apps.googleusercontent.com",
+  "projectId": "parttime-hub",
+  "appId": "1:857521098390:web:b23407c58ab46c1b0d3cb7",
+  "apiKey": "AIzaSyAPSs7H5gmew3jBJ3Ecu2Nct0bEnW-a3RU",
+  "authDomain": "parttime-hub.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "parttime-hub.firebasestorage.app",
+  "messagingSenderId": "857521098390",
+  "measurementId": "G-MJ1SWK1Y6G",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }

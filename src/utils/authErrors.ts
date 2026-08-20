@@ -1,9 +1,39 @@
+import firebaseConfigData from '../../firebase-applet-config.json';
+
+export interface AuthErrorInfo {
+  title: string;
+  message: string;
+  isOperationNotAllowed?: boolean;
+  isUnauthorizedDomain?: boolean;
+  domain?: string;
+  projectId?: string;
+  consoleUrl?: string;
+}
+
 /**
  * Helper to translate Firebase Authentication error codes into actionable, user-friendly messages.
  */
-export function getFriendlyAuthErrorMessage(err: any): { title: string; message: string; isOperationNotAllowed: boolean } {
+export function getFriendlyAuthErrorMessage(err: any): AuthErrorInfo {
   const code = err?.code || '';
   const rawMessage = err?.message || '';
+  const currentDomain = typeof window !== 'undefined' ? window.location.hostname : '';
+  const projectId = firebaseConfigData.projectId || 'parttime-hub';
+  const consoleUrl = `https://console.firebase.google.com/project/${projectId}/authentication/settings`;
+
+  if (
+    code === 'auth/unauthorized-domain' ||
+    rawMessage.includes('auth/unauthorized-domain') ||
+    rawMessage.includes('unauthorized-domain')
+  ) {
+    return {
+      title: 'Google Sign-in: Domain Not Authorized in Firebase',
+      message: `Firebase blocked Google sign-in because "${currentDomain}" is not yet in the Authorized Domains list for project "${projectId}".`,
+      isUnauthorizedDomain: true,
+      domain: currentDomain,
+      projectId,
+      consoleUrl,
+    };
+  }
 
   if (
     code === 'auth/operation-not-allowed' ||
@@ -15,6 +45,8 @@ export function getFriendlyAuthErrorMessage(err: any): { title: string; message:
       message:
         'Email/Password sign-in is currently not enabled in your Firebase project. To enable it: open the Firebase Console, go to Authentication > Sign-in method, click "Email/Password", and toggle "Enable". In the meantime, you can also continue using Google Sign-In.',
       isOperationNotAllowed: true,
+      projectId,
+      consoleUrl,
     };
   }
 

@@ -14,13 +14,14 @@ import {
   Building2,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getFriendlyAuthErrorMessage } from '../../utils/authErrors';
+import { getFriendlyAuthErrorMessage, AuthErrorInfo } from '../../utils/authErrors';
+import { AuthErrorAlert } from '../../components/common/AuthErrorAlert';
 
 export const AdminAccess: React.FC = () => {
   const { currentUser, role, login, loginWithGoogle, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [authError, setAuthError] = useState<{ title: string; message: string; isOperationNotAllowed: boolean } | null>(null);
+  const [authError, setAuthError] = useState<AuthErrorInfo | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
 
@@ -118,17 +119,11 @@ export const AdminAccess: React.FC = () => {
           </div>
 
           {/* Actionable Error Alert */}
-          {authError && (
-            <div className="p-4 bg-rose-950/80 border border-rose-800/80 text-rose-200 rounded-2xl text-xs space-y-2">
-              <div className="flex items-start gap-2.5">
-                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="font-semibold text-rose-100 block text-xs">{authError.title}</strong>
-                  <p className="text-rose-300 text-[11px] mt-0.5 leading-relaxed">{authError.message}</p>
-                </div>
-              </div>
-            </div>
-          )}
+          <AuthErrorAlert
+            error={authError}
+            onContinueGoogle={handleGoogleAdminLogin}
+            showGoogleAlternative={true}
+          />
 
           {/* 1-Click Google Admin Sign In */}
           <button

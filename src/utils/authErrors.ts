@@ -110,6 +110,19 @@ export function getFriendlyAuthErrorMessage(err: any): AuthErrorInfo {
     };
   }
 
+  if (
+    code === 'unavailable' ||
+    rawMessage.includes('client is offline') ||
+    rawMessage.includes('offline') ||
+    rawMessage.includes('network-request-failed')
+  ) {
+    return {
+      title: 'Connecting to Firebase...',
+      message: 'The connection to Firebase is establishing. Your session is active, and your profile is being synchronized.',
+      isOperationNotAllowed: false,
+    };
+  }
+
   return {
     title: 'Authentication Error',
     message: rawMessage.replace(/^Firebase:\s*/i, '') || 'An unexpected error occurred during authentication.',

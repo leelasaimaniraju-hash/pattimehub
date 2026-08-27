@@ -22,22 +22,23 @@ export const googleProvider = new GoogleAuthProvider();
 // Initialize Firestore with robust long polling configuration to avoid WebChannel iframe dropouts
 let firestoreInstance: Firestore;
 try {
-  const dbId =
-    firebaseConfigData.firestoreDatabaseId && firebaseConfigData.firestoreDatabaseId !== '(default)'
-      ? firebaseConfigData.firestoreDatabaseId
-      : undefined;
+  const settings = {
+    experimentalForceLongPolling: true,
+    experimentalAutoDetectLongPolling: true,
+  };
+  const hasCustomDb =
+    firebaseConfigData.firestoreDatabaseId &&
+    firebaseConfigData.firestoreDatabaseId !== '(default)';
 
-  firestoreInstance = initializeFirestore(
-    app,
-    {
-      experimentalForceLongPolling: true,
-      experimentalAutoDetectLongPolling: true,
-    },
-    dbId
-  );
+  if (hasCustomDb) {
+    firestoreInstance = initializeFirestore(app, settings, firebaseConfigData.firestoreDatabaseId);
+  } else {
+    firestoreInstance = initializeFirestore(app, settings);
+  }
 } catch {
   firestoreInstance =
-    firebaseConfigData.firestoreDatabaseId && firebaseConfigData.firestoreDatabaseId !== '(default)'
+    firebaseConfigData.firestoreDatabaseId &&
+    firebaseConfigData.firestoreDatabaseId !== '(default)'
       ? getFirestore(app, firebaseConfigData.firestoreDatabaseId)
       : getFirestore(app);
 }

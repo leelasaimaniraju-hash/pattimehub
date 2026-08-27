@@ -180,6 +180,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return 'admin';
         }
 
+        // If preferredGoogleRole exists, provision automatically
+        if (preferredGoogleRole) {
+          const lat = userLocation?.latitude || 40.7128;
+          const lng = userLocation?.longitude || -74.006;
+          const geohash = getGeohash(lat, lng);
+          const fullName = user.displayName || (preferredGoogleRole === 'employer' ? 'Employer' : 'Job Seeker');
+
+          const newProfile: UserProfile = {
+            uid: user.uid,
+            fullName,
+            email: user.email || '',
+            role: preferredGoogleRole,
+            city: userLocation?.city || 'New York, NY',
+            locationName: userLocation?.city || 'New York, NY',
+            latitude: lat,
+            longitude: lng,
+            geohash,
+            photoURL: user.photoURL || undefined,
+            accountStatus: 'active',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          setUserProfile(newProfile);
+          setRole(preferredGoogleRole);
+          localStorage.setItem(`parttime_user_profile_${user.uid}`, JSON.stringify(newProfile));
+          setDoc(userRef, newProfile).catch((e) => console.warn('Profile sync note:', e));
+          return preferredGoogleRole;
+        }
+
         setNeedsGoogleOnboarding(true);
         return null;
       }
@@ -224,13 +253,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      // Retry once if client was temporarily initializing / offline
-      if (retryCount < 2) {
-        await new Promise((res) => setTimeout(res, 1200));
-        return fetchUserData(user, retryCount + 1);
+      // If user has preferred role or fallback profile
+      const fallbackRole = preferredGoogleRole || 'jobSeeker';
+      const fallbackProfile: UserProfile = {
+        uid: user.uid,
+        fullName: user.displayName || (fallbackRole === 'employer' ? 'Employer' : 'Job Seeker'),
+        email: user.email || '',
+        role: fallbackRole,
+        city: userLocation?.city || 'New York, NY',
+        accountStatus: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setUserProfile(fallbackProfile);
+      setRole(fallbackRole);
+
+      // Retry once in background
+      if (retryCount < 1) {
+        setTimeout(() => {
+          fetchUserData(user, retryCount + 1).catch(() => {});
+        }, 1500);
       }
 
-      return null;
+      return fallbackRole;
     }
   };
 
@@ -308,6 +353,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
+
+      setUserProfile(newUser);
+      setRole(assignedRole);
+      localStorage.setItem(`parttime_user_profile_${uid}`, JSON.stringify(newUser));
 
       await setDoc(doc(db, 'users', uid), newUser);
 
@@ -392,6 +441,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updatedAt: new Date().toISOString(),
       };
 
+      setUserProfile(newUser);
+      setEmployerProfile(newEmployer);
+      setRole(assignedRole);
+      localStorage.setItem(`parttime_user_profile_${uid}`, JSON.stringify(newUser));
+      localStorage.setItem(`parttime_emp_profile_${uid}`, JSON.stringify(newEmployer));
+
       await setDoc(doc(db, 'users', uid), newUser);
       await setDoc(doc(db, 'employers', uid), newEmployer);
 
@@ -420,30 +475,120 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithGoogle = async (preferredRole?: UserRole): Promise<UserRole | null> => {
     setLoading(true);
-    if (preferredRole) {
-      setPreferredGoogleRole(preferredRole);
+    const targetRole = preferredRole || preferredGoogleRole;
+    if (targetRole) {
+      setPreferredGoogleRole(targetRole);
     }
     try {
       const res = await signInWithPopup(auth, googleProvider);
       const user = res.user;
-      
-      const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
+      const uid = user.uid;
+      const userRef = doc(db, 'users', uid);
 
-      if (!userSnap.exists()) {
-        setNeedsGoogleOnboarding(true);
-        if (
-          user.email === 'leelasaimaniraju@gmail.com' ||
-          user.email === 'admin@parttimehub.com'
-        ) {
-          setRole('admin');
-          return 'admin';
-        }
-        return null;
-      } else {
+      // Check if user is known admin first
+      if (
+        user.email === 'leelasaimaniraju@gmail.com' ||
+        user.email === 'admin@parttimehub.com'
+      ) {
+        const adminProfile: UserProfile = {
+          uid,
+          fullName: user.displayName || 'System Admin',
+          email: user.email || '',
+          role: 'admin',
+          city: 'New York, NY',
+          accountStatus: 'active',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        setUserProfile(adminProfile);
+        setRole('admin');
+        localStorage.setItem(`parttime_user_profile_${uid}`, JSON.stringify(adminProfile));
+        setDoc(userRef, adminProfile).catch((e) => console.warn('Admin doc creation note:', e));
+        return 'admin';
+      }
+
+      // Check if document exists in Firestore safely
+      let userSnap = null;
+      try {
+        userSnap = await getDoc(userRef);
+      } catch (docErr) {
+        console.warn('Google sign in document fetch note:', docErr);
+      }
+
+      if (userSnap && userSnap.exists()) {
         const activeRole = await fetchUserData(user);
         return activeRole;
       }
+
+      // Check local cache
+      const cached = localStorage.getItem(`parttime_user_profile_${uid}`);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached) as UserProfile;
+          setUserProfile(parsed);
+          setRole(parsed.role);
+          return parsed.role;
+        } catch {
+          // ignore
+        }
+      }
+
+      // If a role was provided (e.g. from Register Seeker or Register Employer), auto-bootstrap
+      if (targetRole) {
+        const lat = userLocation?.latitude || 40.7128;
+        const lng = userLocation?.longitude || -74.006;
+        const geohash = getGeohash(lat, lng);
+        const fullName = user.displayName || (targetRole === 'employer' ? 'Employer' : 'Job Seeker');
+
+        const newProfile: UserProfile = {
+          uid,
+          fullName,
+          email: user.email || '',
+          phone: '',
+          role: targetRole,
+          city: userLocation?.city || 'New York, NY',
+          locationName: userLocation?.city || 'New York, NY',
+          latitude: lat,
+          longitude: lng,
+          geohash,
+          photoURL: user.photoURL || undefined,
+          accountStatus: 'active',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        setUserProfile(newProfile);
+        setRole(targetRole);
+        localStorage.setItem(`parttime_user_profile_${uid}`, JSON.stringify(newProfile));
+        setDoc(userRef, newProfile).catch((e) => console.warn('Profile sync note:', e));
+
+        if (targetRole === 'employer') {
+          const newEmp: EmployerProfile = {
+            employerId: uid,
+            uid,
+            companyName: `${fullName}'s Business`,
+            description: 'Part-time opportunity provider',
+            category: 'Retail & Shopping',
+            phone: '',
+            address: userLocation?.city || 'New York, NY',
+            city: userLocation?.city || 'New York, NY',
+            latitude: lat,
+            longitude: lng,
+            geohash,
+            verificationStatus: 'pending',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          setEmployerProfile(newEmp);
+          localStorage.setItem(`parttime_emp_profile_${uid}`, JSON.stringify(newEmp));
+          setDoc(doc(db, 'employers', uid), newEmp).catch((e) => console.warn('Employer sync note:', e));
+        }
+
+        return targetRole;
+      }
+
+      setNeedsGoogleOnboarding(true);
+      return null;
     } finally {
       setLoading(false);
     }

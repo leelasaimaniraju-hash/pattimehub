@@ -17,6 +17,7 @@ import { Job, JobApplication, NotificationItem } from '../../types';
 import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { calculateHaversineDistance } from '../../utils/location';
+import { getApprovedJobsWithFallback } from '../../services/seedData';
 
 export const SeekerDashboard: React.FC = () => {
   const { currentUser, userProfile, userLocation } = useAuth();
@@ -60,24 +61,17 @@ export const SeekerDashboard: React.FC = () => {
         notifSnap.forEach((doc) => notifList.push(doc.data() as NotificationItem));
         setRecentNotifications(notifList);
 
-        // Fetch recommended approved jobs
-        const jobsQ = query(collection(db, 'jobs'), where('status', '==', 'approved'), limit(6));
-        const jobsSnap = await getDocs(jobsQ);
-        const jobList: Job[] = [];
-        jobsSnap.forEach((doc) => {
-          const jData = doc.data() as Job;
-          const dist = userLocation
-            ? calculateHaversineDistance(
-                userLocation.latitude,
-                userLocation.longitude,
-                jData.latitude,
-                jData.longitude
-              )
-            : undefined;
-          jobList.push({ ...jData, distanceKm: dist });
-        });
-        jobList.sort((a, b) => (a.distanceKm || 999) - (b.distanceKm || 999));
-        setRecommendedJobs(jobList);
+        // Fetch recommended approved jobs with fallback
+        try {
+          const loadedJobs = await getApprovedJobsWithFallback(
+            userLocation?.latitude,
+            userLocation?.longitude
+          );
+          loadedJobs.sort((a, b) => (a.distanceKm || 999) - (b.distanceKm || 999));
+          setRecommendedJobs(loadedJobs.slice(0, 6));
+        } catch (jobErr) {
+          console.warn('Recommended jobs load notice:', jobErr);
+        }
       } catch (err) {
         console.error('Error loading seeker dashboard:', err);
       } finally {

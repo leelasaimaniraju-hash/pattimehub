@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, Firestore } from 'firebase/firestore';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 import firebaseConfigData from '../../firebase-applet-config.json';
 
@@ -19,11 +19,30 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Explicitly pass the database ID from config for Firestore instance
-export const db =
-  firebaseConfigData.firestoreDatabaseId && firebaseConfigData.firestoreDatabaseId !== '(default)'
-    ? getFirestore(app, firebaseConfigData.firestoreDatabaseId)
-    : getFirestore(app);
+// Initialize Firestore with robust long polling configuration to avoid WebChannel iframe dropouts
+let firestoreInstance: Firestore;
+try {
+  const dbId =
+    firebaseConfigData.firestoreDatabaseId && firebaseConfigData.firestoreDatabaseId !== '(default)'
+      ? firebaseConfigData.firestoreDatabaseId
+      : undefined;
+
+  firestoreInstance = initializeFirestore(
+    app,
+    {
+      experimentalForceLongPolling: true,
+      experimentalAutoDetectLongPolling: true,
+    },
+    dbId
+  );
+} catch {
+  firestoreInstance =
+    firebaseConfigData.firestoreDatabaseId && firebaseConfigData.firestoreDatabaseId !== '(default)'
+      ? getFirestore(app, firebaseConfigData.firestoreDatabaseId)
+      : getFirestore(app);
+}
+
+export const db = firestoreInstance;
 
 // Initialize Firebase Analytics if supported in the current environment
 let analytics: ReturnType<typeof getAnalytics> | null = null;

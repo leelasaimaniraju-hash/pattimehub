@@ -120,7 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserLocation(loc);
   };
 
-  const fetchUserData = async (user: FirebaseUser): Promise<UserRole | null> => {
+  const fetchUserData = async (user: FirebaseUser, retryCount = 0): Promise<UserRole | null> => {
     try {
       const userRef = doc(db, 'users', user.uid);
       const userSnap = await getDoc(userRef);
@@ -137,31 +137,99 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           activeRole = 'admin';
         }
 
-        setUserProfile({ ...profile, role: activeRole });
+        const resolvedProfile: UserProfile = { ...profile, role: activeRole };
+        setUserProfile(resolvedProfile);
         setRole(activeRole);
+        localStorage.setItem(`parttime_user_profile_${user.uid}`, JSON.stringify(resolvedProfile));
 
         if (activeRole === 'employer') {
-          const empRef = doc(db, 'employers', user.uid);
-          const empSnap = await getDoc(empRef);
-          if (empSnap.exists()) {
-            setEmployerProfile(empSnap.data() as EmployerProfile);
+          try {
+            const empRef = doc(db, 'employers', user.uid);
+            const empSnap = await getDoc(empRef);
+            if (empSnap.exists()) {
+              const empData = empSnap.data() as EmployerProfile;
+              setEmployerProfile(empData);
+              localStorage.setItem(`parttime_emp_profile_${user.uid}`, JSON.stringify(empData));
+            }
+          } catch (empErr) {
+            console.warn('Employer profile fetch note:', empErr);
           }
         }
         return activeRole;
       } else {
-        // Needs onboarding for Google Sign In
-        setNeedsGoogleOnboarding(true);
+        // Document does not exist in Firestore
+        // If it's a known admin, auto-bootstrap their profile
         if (
           user.email === 'leelasaimaniraju@gmail.com' ||
           user.email === 'admin@parttimehub.com'
         ) {
+          const adminProfile: UserProfile = {
+            uid: user.uid,
+            fullName: user.displayName || 'System Admin',
+            email: user.email || '',
+            role: 'admin',
+            city: 'New York, NY',
+            accountStatus: 'active',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          setUserProfile(adminProfile);
           setRole('admin');
+          localStorage.setItem(`parttime_user_profile_${user.uid}`, JSON.stringify(adminProfile));
+          setDoc(userRef, adminProfile).catch((e) => console.warn('Admin doc creation note:', e));
           return 'admin';
         }
+
+        setNeedsGoogleOnboarding(true);
         return null;
       }
-    } catch (err) {
-      console.error('Error fetching user profile:', err);
+    } catch (err: any) {
+      console.warn('Notice while fetching user profile:', err?.message || err);
+
+      // Check if user is known admin first
+      if (
+        user.email === 'leelasaimaniraju@gmail.com' ||
+        user.email === 'admin@parttimehub.com'
+      ) {
+        const adminProfile: UserProfile = {
+          uid: user.uid,
+          fullName: user.displayName || 'System Admin',
+          email: user.email || '',
+          role: 'admin',
+          city: 'New York, NY',
+          accountStatus: 'active',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        setUserProfile(adminProfile);
+        setRole('admin');
+        return 'admin';
+      }
+
+      // Check local storage for cached profile
+      const cached = localStorage.getItem(`parttime_user_profile_${user.uid}`);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached) as UserProfile;
+          setUserProfile(parsed);
+          setRole(parsed.role);
+
+          const cachedEmp = localStorage.getItem(`parttime_emp_profile_${user.uid}`);
+          if (cachedEmp) {
+            setEmployerProfile(JSON.parse(cachedEmp));
+          }
+          return parsed.role;
+        } catch {
+          // ignore parsing error
+        }
+      }
+
+      // Retry once if client was temporarily initializing / offline
+      if (retryCount < 2) {
+        await new Promise((res) => setTimeout(res, 1200));
+        return fetchUserData(user, retryCount + 1);
+      }
+
       return null;
     }
   };

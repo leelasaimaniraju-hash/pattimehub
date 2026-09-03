@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { GoogleOnboardingModal } from './components/common/GoogleOnboardingModal';
 
 // Public Pages
 import { Home } from './pages/public/Home';
@@ -81,6 +82,7 @@ export const App: React.FC = () => {
   return (
     <Router>
       <AuthProvider>
+        <GoogleOnboardingModal />
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Home />} />

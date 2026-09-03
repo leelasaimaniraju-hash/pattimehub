@@ -17,7 +17,14 @@ export const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
+if (typeof window !== 'undefined') {
+  auth.useDeviceLanguage();
+}
+
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account',
+});
 
 // Initialize Firestore with robust long polling configuration to avoid WebChannel iframe dropouts
 let firestoreInstance: Firestore;

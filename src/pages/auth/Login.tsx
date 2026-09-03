@@ -7,11 +7,20 @@ import { getFriendlyAuthErrorMessage, AuthErrorInfo } from '../../utils/authErro
 import { AuthErrorAlert } from '../../components/common/AuthErrorAlert';
 
 export const Login: React.FC = () => {
-  const { login, loginWithGoogle, role, loading } = useAuth();
+  const { login, loginWithGoogle, role, loading, currentUser } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<AuthErrorInfo | null>(null);
   const navigate = useNavigate();
+
+  // Automatically navigate if user is already authenticated or returns from redirect
+  React.useEffect(() => {
+    if (currentUser && role) {
+      if (role === 'admin') navigate('/admin/dashboard', { replace: true });
+      else if (role === 'employer') navigate('/employer/dashboard', { replace: true });
+      else if (role === 'jobSeeker') navigate('/seeker/dashboard', { replace: true });
+    }
+  }, [currentUser, role, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

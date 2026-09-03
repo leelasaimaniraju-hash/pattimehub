@@ -90,11 +90,28 @@ export const AuthErrorAlert: React.FC<AuthErrorAlertProps> = ({
                 Click <strong>"Add domain"</strong>, paste <code className="bg-amber-100 px-1 py-0.5 rounded text-[10px] font-mono font-bold text-amber-900">{currentDomain}</code>, and click <strong>Save</strong>.
               </li>
             </ol>
+            {error.isVercel && (
+              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg text-red-900 font-semibold text-[11px]">
+                ⚠️ <strong>CRITICAL for Vercel:</strong> Do NOT add wildcards like <code className="bg-red-100 px-1 py-0.5 rounded font-mono text-[10px]">*.vercel.app</code>. Firebase strictly requires the exact full domain name (e.g. <code className="bg-red-100 px-1 py-0.5 rounded font-mono text-[10px]">{currentDomain}</code>).
+              </div>
+            )}
           </div>
 
           <div className="pt-1 text-[11px] text-slate-600 bg-amber-100/50 p-2.5 rounded-xl border border-amber-200/60">
             💡 <em>Tip:</em> You can also use <strong>Email & Password registration/login</strong> right now on this form!
           </div>
+        </div>
+      )}
+
+      {/* Popup Blocked Guidance */}
+      {error.isPopupBlocked && (
+        <div className="pt-2 border-t border-amber-200/80 space-y-1.5 text-[11px] text-amber-900">
+          <p className="font-semibold">How to fix popup blockers on Chrome / Mobile:</p>
+          <ul className="list-disc list-inside space-y-1 text-amber-800">
+            <li>Look at the address bar or bottom bar for a <strong>"Pop-up blocked"</strong> icon or prompt.</li>
+            <li>Tap or click it, select <strong>"Always allow pop-ups and redirects"</strong>, and tap Done.</li>
+            <li>Click the Google sign-in button again to proceed.</li>
+          </ul>
         </div>
       )}
 

@@ -5,6 +5,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   sendPasswordResetEmail,
 } from 'firebase/auth';
@@ -279,7 +281,153 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Centralized user processing for popup, redirect, and state updates
+  const processAuthenticatedUser = async (user: FirebaseUser, targetRole?: UserRole): Promise<UserRole | null> => {
+    const uid = user.uid;
+    const userRef = doc(db, 'users', uid);
+
+    // 1. Check if user is known admin first
+    if (
+      user.email === 'leelasaimaniraju@gmail.com' ||
+      user.email === 'admin@parttimehub.com'
+    ) {
+      const adminProfile: UserProfile = {
+        uid,
+        fullName: user.displayName || 'System Admin',
+        email: user.email || '',
+        role: 'admin',
+        city: 'New York, NY',
+        accountStatus: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setUserProfile(adminProfile);
+      setRole('admin');
+      localStorage.setItem(`parttime_user_profile_${uid}`, JSON.stringify(adminProfile));
+      setDoc(userRef, adminProfile, { merge: true }).catch((e) => console.warn('Admin doc creation note:', e));
+      return 'admin';
+    }
+
+    // 2. Check if document exists in Firestore safely
+    let userSnap = null;
+    try {
+      userSnap = await getDoc(userRef);
+    } catch (docErr) {
+      console.warn('Google sign in document fetch note:', docErr);
+    }
+
+    if (userSnap && userSnap.exists()) {
+      const activeRole = await fetchUserData(user);
+      return activeRole;
+    }
+
+    // 3. Check local cache
+    const cached = localStorage.getItem(`parttime_user_profile_${uid}`);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as UserProfile;
+        setUserProfile(parsed);
+        setRole(parsed.role);
+        return parsed.role;
+      } catch {
+        // ignore
+      }
+    }
+
+    // 4. If targetRole was provided (e.g. from Register Seeker or Register Employer), auto-bootstrap
+    if (targetRole) {
+      const lat = userLocation?.latitude || 40.7128;
+      const lng = userLocation?.longitude || -74.006;
+      const geohash = getGeohash(lat, lng);
+      const fullName = user.displayName || (targetRole === 'employer' ? 'Employer' : 'Job Seeker');
+
+      const newProfile: UserProfile = {
+        uid,
+        fullName,
+        email: user.email || '',
+        phone: user.phoneNumber || '',
+        role: targetRole,
+        city: userLocation?.city || 'New York, NY',
+        locationName: userLocation?.city || 'New York, NY',
+        latitude: lat,
+        longitude: lng,
+        geohash,
+        photoURL: user.photoURL || undefined,
+        accountStatus: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      setUserProfile(newProfile);
+      setRole(targetRole);
+      localStorage.setItem(`parttime_user_profile_${uid}`, JSON.stringify(newProfile));
+      setDoc(userRef, newProfile, { merge: true }).catch((e) => console.warn('Profile sync note:', e));
+
+      if (targetRole === 'employer') {
+        const newEmp: EmployerProfile = {
+          employerId: uid,
+          uid,
+          companyName: `${fullName}'s Business`,
+          description: 'Part-time opportunity provider',
+          category: 'Retail & Shopping',
+          phone: user.phoneNumber || '',
+          address: userLocation?.city || 'New York, NY',
+          city: userLocation?.city || 'New York, NY',
+          latitude: lat,
+          longitude: lng,
+          geohash,
+          verificationStatus: 'verified',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        setEmployerProfile(newEmp);
+        localStorage.setItem(`parttime_emp_profile_${uid}`, JSON.stringify(newEmp));
+        setDoc(doc(db, 'employers', uid), newEmp, { merge: true }).catch((e) => console.warn('Employer sync note:', e));
+      }
+
+      // Log registration activity
+      try {
+        setDoc(doc(db, 'activityLogs', `log_${Date.now()}`), {
+          logId: `log_${Date.now()}`,
+          actorUid: uid,
+          actorRole: targetRole,
+          actorName: fullName,
+          action: targetRole === 'employer' ? 'employer_registered' : 'seeker_registered',
+          targetType: targetRole,
+          targetId: uid,
+          description: `${fullName} registered with Google as ${targetRole}`,
+          createdAt: new Date().toISOString(),
+        }).catch(() => {});
+      } catch {}
+
+      return targetRole;
+    }
+
+    setNeedsGoogleOnboarding(true);
+    return null;
+  };
+
   useEffect(() => {
+    let isMounted = true;
+
+    // Check for redirect sign-in result (mobile browser compatibility)
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (!isMounted || !result || !result.user) return;
+        const pendingRole = (
+          sessionStorage.getItem('parttime_pending_role') ||
+          localStorage.getItem('parttime_pending_role') ||
+          'jobSeeker'
+        ) as UserRole;
+        sessionStorage.removeItem('parttime_pending_role');
+        localStorage.removeItem('parttime_pending_role');
+
+        await processAuthenticatedUser(result.user, pendingRole);
+      })
+      .catch((err) => {
+        console.warn('Redirect auth result note:', err);
+      });
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
@@ -293,7 +441,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   const refreshUserProfile = async () => {
@@ -478,117 +629,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const targetRole = preferredRole || preferredGoogleRole;
     if (targetRole) {
       setPreferredGoogleRole(targetRole);
-    }
-    try {
-      const res = await signInWithPopup(auth, googleProvider);
-      const user = res.user;
-      const uid = user.uid;
-      const userRef = doc(db, 'users', uid);
-
-      // Check if user is known admin first
-      if (
-        user.email === 'leelasaimaniraju@gmail.com' ||
-        user.email === 'admin@parttimehub.com'
-      ) {
-        const adminProfile: UserProfile = {
-          uid,
-          fullName: user.displayName || 'System Admin',
-          email: user.email || '',
-          role: 'admin',
-          city: 'New York, NY',
-          accountStatus: 'active',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        setUserProfile(adminProfile);
-        setRole('admin');
-        localStorage.setItem(`parttime_user_profile_${uid}`, JSON.stringify(adminProfile));
-        setDoc(userRef, adminProfile).catch((e) => console.warn('Admin doc creation note:', e));
-        return 'admin';
-      }
-
-      // Check if document exists in Firestore safely
-      let userSnap = null;
       try {
-        userSnap = await getDoc(userRef);
-      } catch (docErr) {
-        console.warn('Google sign in document fetch note:', docErr);
+        sessionStorage.setItem('parttime_pending_role', targetRole);
+        localStorage.setItem('parttime_pending_role', targetRole);
+      } catch {
+        // ignore
       }
+    }
 
-      if (userSnap && userSnap.exists()) {
-        const activeRole = await fetchUserData(user);
-        return activeRole;
-      }
+    try {
+      let res;
+      try {
+        res = await signInWithPopup(auth, googleProvider);
+      } catch (popupErr: any) {
+        const errCode = popupErr?.code || '';
+        const errMsg = popupErr?.message || '';
 
-      // Check local cache
-      const cached = localStorage.getItem(`parttime_user_profile_${uid}`);
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached) as UserProfile;
-          setUserProfile(parsed);
-          setRole(parsed.role);
-          return parsed.role;
-        } catch {
-          // ignore
+        // If popup was blocked by browser on mobile / top-level window, fall back to redirect
+        const isIframe = typeof window !== 'undefined' && window.self !== window.top;
+        if (errCode === 'auth/popup-blocked' && !isIframe) {
+          console.warn('Popup blocked, falling back to signInWithRedirect...');
+          await signInWithRedirect(auth, googleProvider);
+          return null;
+        }
+
+        // Auto-retry if any temporary database closing/hidden state occurs
+        if (
+          errMsg.includes('closing/hidden') ||
+          errMsg.includes('database connection is closing') ||
+          errMsg.includes('Database is closing')
+        ) {
+          console.warn('Database closing notice encountered, retrying signInWithPopup in 300ms...');
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          res = await signInWithPopup(auth, googleProvider);
+        } else {
+          throw popupErr;
         }
       }
 
-      // If a role was provided (e.g. from Register Seeker or Register Employer), auto-bootstrap
-      if (targetRole) {
-        const lat = userLocation?.latitude || 40.7128;
-        const lng = userLocation?.longitude || -74.006;
-        const geohash = getGeohash(lat, lng);
-        const fullName = user.displayName || (targetRole === 'employer' ? 'Employer' : 'Job Seeker');
-
-        const newProfile: UserProfile = {
-          uid,
-          fullName,
-          email: user.email || '',
-          phone: '',
-          role: targetRole,
-          city: userLocation?.city || 'New York, NY',
-          locationName: userLocation?.city || 'New York, NY',
-          latitude: lat,
-          longitude: lng,
-          geohash,
-          photoURL: user.photoURL || undefined,
-          accountStatus: 'active',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-
-        setUserProfile(newProfile);
-        setRole(targetRole);
-        localStorage.setItem(`parttime_user_profile_${uid}`, JSON.stringify(newProfile));
-        setDoc(userRef, newProfile).catch((e) => console.warn('Profile sync note:', e));
-
-        if (targetRole === 'employer') {
-          const newEmp: EmployerProfile = {
-            employerId: uid,
-            uid,
-            companyName: `${fullName}'s Business`,
-            description: 'Part-time opportunity provider',
-            category: 'Retail & Shopping',
-            phone: '',
-            address: userLocation?.city || 'New York, NY',
-            city: userLocation?.city || 'New York, NY',
-            latitude: lat,
-            longitude: lng,
-            geohash,
-            verificationStatus: 'pending',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          setEmployerProfile(newEmp);
-          localStorage.setItem(`parttime_emp_profile_${uid}`, JSON.stringify(newEmp));
-          setDoc(doc(db, 'employers', uid), newEmp).catch((e) => console.warn('Employer sync note:', e));
-        }
-
-        return targetRole;
+      if (!res || !res.user) {
+        return null;
       }
 
-      setNeedsGoogleOnboarding(true);
-      return null;
+      return await processAuthenticatedUser(res.user, targetRole);
     } finally {
       setLoading(false);
     }

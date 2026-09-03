@@ -6,7 +6,7 @@ import { getFriendlyAuthErrorMessage, AuthErrorInfo } from '../../utils/authErro
 import { AuthErrorAlert } from '../../components/common/AuthErrorAlert';
 
 export const RegisterEmployer: React.FC = () => {
-  const { registerEmployer, loginWithGoogle, userLocation, loading } = useAuth();
+  const { registerEmployer, loginWithGoogle, userLocation, loading, currentUser, role } = useAuth();
   const [fullName, setFullName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
@@ -19,6 +19,15 @@ export const RegisterEmployer: React.FC = () => {
   const [description, setDescription] = useState('');
   const [authError, setAuthError] = useState<AuthErrorInfo | null>(null);
   const navigate = useNavigate();
+
+  // Automatically navigate if user is already authenticated or returns from redirect
+  React.useEffect(() => {
+    if (currentUser && role) {
+      if (role === 'admin') navigate('/admin/dashboard', { replace: true });
+      else if (role === 'employer') navigate('/employer/dashboard', { replace: true });
+      else if (role === 'jobSeeker') navigate('/seeker/dashboard', { replace: true });
+    }
+  }, [currentUser, role, navigate]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,8 +75,14 @@ export const RegisterEmployer: React.FC = () => {
   const handleGoogleSignup = async () => {
     setAuthError(null);
     try {
-      await loginWithGoogle('employer');
-      navigate('/employer/dashboard');
+      const activeRole = await loginWithGoogle('employer');
+      if (activeRole === 'admin') {
+        navigate('/admin/dashboard');
+      } else if (activeRole === 'employer') {
+        navigate('/employer/dashboard');
+      } else if (activeRole === 'jobSeeker') {
+        navigate('/seeker/dashboard');
+      }
     } catch (err: any) {
       console.error('Google signup error:', err);
       setAuthError(getFriendlyAuthErrorMessage(err));
